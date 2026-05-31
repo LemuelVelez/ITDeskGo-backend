@@ -194,11 +194,54 @@ class Database extends Config
     {
         parent::__construct();
 
+        $this->applyRuntimeDatabaseConfig();
+
         // Ensure that we always set the database group to 'tests' if
         // we are currently running an automated test suite, so that
         // we don't overwrite live data on accident.
         if (ENVIRONMENT === 'testing') {
             $this->defaultGroup = 'tests';
         }
+    }
+
+    private function applyRuntimeDatabaseConfig(): void
+    {
+        $this->setDefaultValue('DBDriver', 'DB_DRIVER', 'DATABASE_DEFAULT_DBDRIVER', 'database.default.DBDriver');
+        $this->setDefaultValue('hostname', 'DB_HOST', 'DATABASE_DEFAULT_HOSTNAME', 'database.default.hostname');
+        $this->setDefaultValue('database', 'DB_NAME', 'DATABASE_DEFAULT_DATABASE', 'database.default.database');
+        $this->setDefaultValue('username', 'DB_USER', 'DATABASE_DEFAULT_USERNAME', 'database.default.username');
+        $this->setDefaultValue('password', 'DB_PASS', 'DATABASE_DEFAULT_PASSWORD', 'database.default.password');
+
+        $port = $this->getEnvValue('DB_PORT', 'DATABASE_DEFAULT_PORT', 'database.default.port');
+
+        if ($port !== null) {
+            $this->default['port'] = (int) $port;
+        }
+    }
+
+    private function setDefaultValue(string $configKey, string ...$envKeys): void
+    {
+        $value = $this->getEnvValue(...$envKeys);
+
+        if ($value !== null) {
+            $this->default[$configKey] = $value;
+        }
+    }
+
+    private function getEnvValue(string ...$keys): ?string
+    {
+        foreach ($keys as $key) {
+            $value = getenv($key);
+
+            if ($value === false || $value === '') {
+                $value = env($key);
+            }
+
+            if ($value !== null && $value !== false && $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        return null;
     }
 }
