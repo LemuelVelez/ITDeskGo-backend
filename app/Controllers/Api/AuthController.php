@@ -87,19 +87,42 @@ class AuthController extends BaseApiController
         $email = strtolower(trim((string) $payload['email']));
         $user  = $this->db->table(SchemaModel::TABLE_USERS)->where('email', $email)->get()->getRowArray();
 
-        if (is_array($user) && $this->tableHasColumn(SchemaModel::TABLE_USERS, 'reset_token')) {
+        if (is_array($user)) {
+            if (! $this->tableHasColumn(SchemaModel::TABLE_USERS, 'reset_token')) {
+                log_message('error', 'Password reset failed because the users table has no reset_token column.');
+
+                return $this->respond([
+                    'status'  => 'error',
+                    'message' => 'Password reset storage is not configured.',
+                ], 500);
+            }
+
             $resetToken = bin2hex(random_bytes(32));
+            $resetData  = [
+                'reset_token' => password_hash($resetToken, PASSWORD_DEFAULT),
+            ];
+
+            if ($this->tableHasColumn(SchemaModel::TABLE_USERS, 'reset_token_expires_at')) {
+                $resetData['reset_token_expires_at'] = date('Y-m-d H:i:s', strtotime('+1 hour'));
+            }
 
             $this->db->table(SchemaModel::TABLE_USERS)
                 ->where('id', (int) $user['id'])
-                ->update($this->withTimestamps(SchemaModel::TABLE_USERS, [
-                    'reset_token' => password_hash($resetToken, PASSWORD_DEFAULT),
-                ]));
+                ->update($this->withTimestamps(SchemaModel::TABLE_USERS, $resetData));
+
+            $resetUrl = $this->passwordResetUrl($email, $resetToken);
+
+            if (! $this->sendPasswordResetEmail($email, $resetUrl)) {
+                return $this->respond([
+                    'status'  => 'error',
+                    'message' => 'Password reset email is not configured or could not be sent.',
+                ], 500);
+            }
         }
 
         return $this->success([
             'email' => $email,
-        ], 'If the email exists, password reset instructions will be prepared.');
+        ], 'If the email exists, password reset instructions will be sent to your email.');
     }
 
     public function profile(int $id)
@@ -178,6 +201,90 @@ class AuthController extends BaseApiController
             ]));
 
         return $this->success([], 'Password changed successfully.');
+    }
+
+    private function sendPasswordResetEmail(string $email, string $resetUrl): bool
+    {
+        $gmailUser        = trim((string) (env('GMAIL_USER') ?: ''));
+        $gmailAppPassword = trim((string) (env('GMAIL_APP_PASSWORD') ?: ''));
+
+        if ($gmailUser === '' || $gmailAppPassword === '') {
+            log_message('error', 'Password reset email failed because GMAIL_USER or GMAIL_APP_PASSWORD is missing.');
+
+            return false;
+        }
+
+        $mailer = service('email');
+        $mailer->initialize([
+            'protocol'   => 'smtp',
+            'SMTPHost'   => 'smtp.gmail.com',
+            'SMTPUser'   => $gmailUser,
+            'SMTPPass'   => $gmailAppPassword,
+            'SMTPPort'   => 587,
+            'SMTPCrypto' => 'tls',
+            'mailType'   => 'html',
+            'charset'    => 'utf-8',
+            'newline'    => "\r\n",
+            'CRLF'       => "\r\n",
+            'wordWrap'   => true,
+        ]);
+
+        $mailer->setFrom($gmailUser, $this->emailSenderName());
+        $mailer->setTo($email);
+        $mailer->setSubject('ITDeskGo Password Reset');
+        $mailer->setMessage($this->passwordResetEmailHtml($resetUrl));
+        $mailer->setAltMessage($this->passwordResetEmailText($resetUrl));
+
+        if ($mailer->send()) {
+            return true;
+        }
+
+        log_message('error', 'Password reset email failed: ' . print_r($mailer->printDebugger(['headers', 'subject']), true));
+
+        return false;
+    }
+
+    private function passwordResetUrl(string $email, string $token): string
+    {
+        $frontendUrl = trim((string) (env('EXPO_FRONTEND_URL') ?: env('FRONTEND_URL') ?: env('app.baseURL') ?: base_url()));
+        $query       = http_build_query([
+            'email' => $email,
+            'token' => $token,
+        ]);
+
+        return rtrim($frontendUrl, '/') . '/reset-password?' . $query;
+    }
+
+    private function passwordResetEmailHtml(string $resetUrl): string
+    {
+        $safeUrl = esc($resetUrl, 'html');
+
+        return <<<HTML
+            <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6;">
+                <h2 style="color: #1455D9;">Reset your ITDeskGo password</h2>
+                <p>We received a request to reset your ITDeskGo account password.</p>
+                <p>
+                    <a href="{$safeUrl}" style="background: #1455D9; color: #FFFFFF; padding: 12px 18px; border-radius: 999px; display: inline-block; text-decoration: none; font-weight: 700;">
+                        Reset Password
+                    </a>
+                </p>
+                <p>If the button does not work, copy and paste this link into your browser:</p>
+                <p><a href="{$safeUrl}">{$safeUrl}</a></p>
+                <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>
+            </div>
+            HTML;
+    }
+
+    private function passwordResetEmailText(string $resetUrl): string
+    {
+        return "Reset your ITDeskGo password using this link: {$resetUrl}\n\nThis link expires in 1 hour. If you did not request this, you can ignore this email.";
+    }
+
+    private function emailSenderName(): string
+    {
+        $senderName = trim((string) (env('GMAIL_FROM_NAME') ?: env('MAIL_FROM_NAME') ?: 'ITDeskGo'));
+
+        return $senderName !== '' ? $senderName : 'ITDeskGo';
     }
 
     private function tabsForRole(string $role): array

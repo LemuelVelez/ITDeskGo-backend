@@ -34,7 +34,11 @@ class Cors extends BaseConfig
          *   - ['http://localhost:8080']
          *   - ['https://www.example.com']
          */
-        'allowedOrigins' => [],
+        'allowedOrigins' => [
+            'http://localhost:8080',
+            'http://localhost:8081',
+            'http://localhost:19006',
+        ],
 
         /**
          * Origin regex patterns for the `Access-Control-Allow-Origin` header.
@@ -68,7 +72,14 @@ class Cors extends BaseConfig
          *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
          */
-        'allowedHeaders' => [],
+        'allowedHeaders' => [
+            'Accept',
+            'Authorization',
+            'Content-Type',
+            'Origin',
+            'X-Requested-With',
+            'X-User-Id',
+        ],
 
         /**
          * Set headers to expose.
@@ -79,21 +90,26 @@ class Cors extends BaseConfig
          *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
          */
-        'exposedHeaders' => [],
+        'exposedHeaders' => [
+            'Authorization',
+        ],
 
         /**
          * Set methods to allow.
-         *
-         * The Access-Control-Allow-Methods response header specifies one or more
-         * methods allowed when accessing a resource in response to a preflight
-         * request.
          *
          * E.g.:
          *   - ['GET', 'POST', 'PUT', 'DELETE']
          *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
          */
-        'allowedMethods' => [],
+        'allowedMethods' => [
+            'GET',
+            'POST',
+            'PUT',
+            'PATCH',
+            'DELETE',
+            'OPTIONS',
+        ],
 
         /**
          * Set how many seconds the results of a preflight request can be cached.
@@ -102,4 +118,32 @@ class Cors extends BaseConfig
          */
         'maxAge' => 7200,
     ];
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        $this->default['allowedOrigins'] = $this->envList('CORS_ALLOWED_ORIGINS', $this->default['allowedOrigins']);
+    }
+
+    /**
+     * @param list<string> $fallback
+     *
+     * @return list<string>
+     */
+    private function envList(string $key, array $fallback): array
+    {
+        $value = env($key);
+
+        if (! is_string($value) || trim($value) === '') {
+            return $fallback;
+        }
+
+        $items = array_values(array_filter(array_map(
+            static fn (string $item): string => trim($item),
+            explode(',', $value),
+        )));
+
+        return $items === [] ? $fallback : $items;
+    }
 }
