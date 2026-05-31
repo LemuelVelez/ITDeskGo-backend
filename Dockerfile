@@ -44,8 +44,10 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
     && a2enconf codeigniter
 
 COPY --from=vendor /app ./
+COPY docker/entrypoint.sh /usr/local/bin/itdeskgo-entrypoint
 
-RUN mkdir -p \
+RUN chmod +x /usr/local/bin/itdeskgo-entrypoint \
+    && mkdir -p \
         writable/cache \
         writable/debugbar \
         writable/logs \
@@ -56,4 +58,5 @@ RUN mkdir -p \
 
 EXPOSE 80
 
+ENTRYPOINT ["itdeskgo-entrypoint"]
 CMD ["apache2-foreground"]
