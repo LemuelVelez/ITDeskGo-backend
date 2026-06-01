@@ -28,19 +28,24 @@ class Cors extends BaseConfig
         /**
          * Origins for the `Access-Control-Allow-Origin` header.
          *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
+         * Native Expo Android/iOS requests do not require browser CORS, but Expo Web
+         * and local browser tools do. Keep local, Android emulator, and LAN origins
+         * available for development.
          *
-         * E.g.:
-         *   - ['http://localhost:8080']
-         *   - ['https://www.example.com']
+         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
          */
         'allowedOrigins' => [
+            'http://localhost:3000',
             'http://localhost:8080',
             'http://localhost:8081',
             'http://localhost:19006',
+            'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
             'http://127.0.0.1:8081',
             'http://127.0.0.1:19006',
+            'http://10.0.2.2:8080',
+            'http://10.0.2.2:8081',
+            'http://10.0.2.2:19006',
         ],
 
         /**
@@ -50,17 +55,18 @@ class Cors extends BaseConfig
          *
          * NOTE: A pattern specified here is part of a regular expression. It will
          *       be actually `#\A<pattern>\z#`.
-         *
-         * E.g.:
-         *   - ['https://\w+\.example\.com']
          */
-        'allowedOriginsPatterns' => [],
+        'allowedOriginsPatterns' => [
+            'https?://localhost(:[0-9]+)?',
+            'https?://127\.0\.0\.1(:[0-9]+)?',
+            'https?://10\.0\.2\.2(:[0-9]+)?',
+            'https?://192\.168\.[0-9]{1,3}\.[0-9]{1,3}(:[0-9]+)?',
+            'https?://10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(:[0-9]+)?',
+            'https?://172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}(:[0-9]+)?',
+        ],
 
         /**
          * Whether to send the `Access-Control-Allow-Credentials` header.
-         *
-         * The Access-Control-Allow-Credentials response header tells browsers whether
-         * the server allows cross-origin HTTP requests to include credentials.
          *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
          */
@@ -68,10 +74,6 @@ class Cors extends BaseConfig
 
         /**
          * Set headers to allow.
-         *
-         * The Access-Control-Allow-Headers response header is used in response to
-         * a preflight request which includes the Access-Control-Request-Headers to
-         * indicate which HTTP headers can be used during the actual request.
          *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
          */
@@ -87,10 +89,6 @@ class Cors extends BaseConfig
         /**
          * Set headers to expose.
          *
-         * The Access-Control-Expose-Headers response header allows a server to
-         * indicate which response headers should be made available to scripts running
-         * in the browser, in response to a cross-origin request.
-         *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
          */
         'exposedHeaders' => [
@@ -99,9 +97,6 @@ class Cors extends BaseConfig
 
         /**
          * Set methods to allow.
-         *
-         * E.g.:
-         *   - ['GET', 'POST', 'PUT', 'DELETE']
          *
          * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
          */
@@ -127,6 +122,7 @@ class Cors extends BaseConfig
         parent::__construct();
 
         $this->default['allowedOrigins'] = $this->envList('CORS_ALLOWED_ORIGINS', $this->default['allowedOrigins']);
+        $this->default['allowedOriginsPatterns'] = $this->envList('CORS_ALLOWED_ORIGIN_PATTERNS', $this->default['allowedOriginsPatterns']);
     }
 
     /**
