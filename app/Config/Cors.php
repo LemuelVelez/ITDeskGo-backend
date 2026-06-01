@@ -38,6 +38,9 @@ class Cors extends BaseConfig
             'http://localhost:8080',
             'http://localhost:8081',
             'http://localhost:19006',
+            'http://127.0.0.1:8080',
+            'http://127.0.0.1:8081',
+            'http://127.0.0.1:19006',
         ],
 
         /**
@@ -54,7 +57,7 @@ class Cors extends BaseConfig
         'allowedOriginsPatterns' => [],
 
         /**
-         * Weather to send the `Access-Control-Allow-Credentials` header.
+         * Whether to send the `Access-Control-Allow-Credentials` header.
          *
          * The Access-Control-Allow-Credentials response header tells browsers whether
          * the server allows cross-origin HTTP requests to include credentials.
@@ -139,10 +142,10 @@ class Cors extends BaseConfig
             return $fallback;
         }
 
-        $items = array_values(array_filter(array_map(
-            static fn (string $item): string => trim($item),
+        $items = array_values(array_unique(array_filter(array_map(
+            static fn (string $item): string => trim($item, " \t\n\r\0\x0B'\""),
             explode(',', $value),
-        )));
+        ))));
 
         return $items === [] ? $fallback : $items;
     }
