@@ -31,6 +31,8 @@ RUN composer dump-autoload \
 
 FROM php:8.2-apache
 
+LABEL traefik.docker.network="coolify"
+
 WORKDIR /var/www/html
 
 ENV DEBIAN_FRONTEND=noninteractive
