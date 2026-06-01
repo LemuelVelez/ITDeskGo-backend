@@ -206,29 +206,90 @@ class Database extends Config
 
     private function applyRuntimeDatabaseConfig(): void
     {
+        $this->applyDatabaseUrlConfig();
+
         $this->setDefaultValue('DBDriver', 'DB_DRIVER', 'DATABASE_DEFAULT_DBDRIVER', 'database.default.DBDriver');
         $this->setDefaultValue('hostname', 'DB_HOST', 'DATABASE_DEFAULT_HOSTNAME', 'database.default.hostname');
         $this->setDefaultValue('database', 'DB_NAME', 'DATABASE_DEFAULT_DATABASE', 'database.default.database');
         $this->setDefaultValue('username', 'DB_USER', 'DATABASE_DEFAULT_USERNAME', 'database.default.username');
         $this->setDefaultValue('password', 'DB_PASS', 'DATABASE_DEFAULT_PASSWORD', 'database.default.password');
 
-        $port = $this->getEnvValue('DB_PORT', 'DATABASE_DEFAULT_PORT', 'database.default.port');
+        $port = $this->readEnvValue('DB_PORT', 'DATABASE_DEFAULT_PORT', 'database.default.port');
 
         if ($port !== null) {
             $this->default['port'] = (int) $port;
+        }
+
+        $debug = $this->readEnvValue('DB_DEBUG', 'DATABASE_DEFAULT_DBDEBUG', 'database.default.DBDebug');
+
+        if ($debug !== null) {
+            $this->default['DBDebug'] = filter_var($debug, FILTER_VALIDATE_BOOLEAN);
+        } elseif (ENVIRONMENT === 'production') {
+            $this->default['DBDebug'] = false;
+        }
+    }
+
+    private function applyDatabaseUrlConfig(): void
+    {
+        $databaseUrl = $this->readEnvValue('MySQL_DATABASE_URL', 'MYSQL_DATABASE_URL', 'DATABASE_URL');
+
+        if ($databaseUrl === null) {
+            return;
+        }
+
+        $databaseUrl = trim($databaseUrl, " \t\n\r\0\x0B\"'");
+
+        if ($databaseUrl === '') {
+            return;
+        }
+
+        $parts = parse_url($databaseUrl);
+
+        if ($parts === false) {
+            return;
+        }
+
+        $scheme = isset($parts['scheme']) ? strtolower($parts['scheme']) : '';
+
+        if (in_array($scheme, ['mysql', 'mysqli', 'mariadb'], true)) {
+            $this->default['DBDriver'] = 'MySQLi';
+        }
+
+        if (isset($parts['host']) && $parts['host'] !== '') {
+            $this->default['hostname'] = $parts['host'];
+        }
+
+        if (isset($parts['user'])) {
+            $this->default['username'] = rawurldecode($parts['user']);
+        }
+
+        if (isset($parts['pass'])) {
+            $this->default['password'] = rawurldecode($parts['pass']);
+        }
+
+        if (isset($parts['path'])) {
+            $database = ltrim($parts['path'], '/');
+
+            if ($database !== '') {
+                $this->default['database'] = rawurldecode($database);
+            }
+        }
+
+        if (isset($parts['port'])) {
+            $this->default['port'] = (int) $parts['port'];
         }
     }
 
     private function setDefaultValue(string $configKey, string ...$envKeys): void
     {
-        $value = $this->getEnvValue(...$envKeys);
+        $value = $this->readEnvValue(...$envKeys);
 
         if ($value !== null) {
             $this->default[$configKey] = $value;
         }
     }
 
-    private function getEnvValue(string ...$keys): ?string
+    private function readEnvValue(string ...$keys): ?string
     {
         foreach ($keys as $key) {
             $value = getenv($key);
