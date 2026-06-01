@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Api;
 
 use App\Models\SchemaModel;
+use Throwable;
 
 class AuthController extends BaseApiController
 {
@@ -39,10 +40,19 @@ class AuthController extends BaseApiController
             return $this->badRequest('Please provide your email and password.', $errors);
         }
 
-        $user = $this->db->table(SchemaModel::TABLE_USERS)
-            ->where('email', strtolower(trim((string) $payload['email'])))
-            ->get()
-            ->getRowArray();
+        try {
+            $user = $this->db->table(SchemaModel::TABLE_USERS)
+                ->where('email', strtolower(trim((string) $payload['email'])))
+                ->get()
+                ->getRowArray();
+        } catch (Throwable $error) {
+            log_message('error', 'Login database connection failed: ' . $error->getMessage());
+
+            return $this->respond([
+                'status'  => 'error',
+                'message' => 'The backend is online, but its database connection is not available. Please check the backend database environment variables in Coolify.',
+            ], 503);
+        }
 
         if (! is_array($user)) {
             return $this->badRequest('Invalid email or password.');
@@ -246,7 +256,7 @@ class AuthController extends BaseApiController
 
     private function passwordResetUrl(string $email, string $token): string
     {
-        $frontendUrl = trim((string) (env('EXPO_FRONTEND_URL') ?: env('FRONTEND_URL') ?: env('app.baseURL') ?: base_url()));
+        $frontendUrl = trim((string) (env('FRONTEND_URL') ?: env('app.baseURL') ?: base_url()));
         $query       = http_build_query([
             'email' => $email,
             'token' => $token,
