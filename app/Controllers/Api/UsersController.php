@@ -16,29 +16,39 @@ class UsersController extends BaseApiController
             ->orderBy('u.id', 'DESC');
 
         if ($this->tableHasColumn(SchemaModel::TABLE_USERS, 'role_id')) {
-            $builder->select('r.name AS role_name, r.slug AS role_slug')->join(SchemaModel::TABLE_ROLES . ' r', 'r.id = u.role_id', 'left');
+            $roleSelect = $this->roleSelectColumns();
+
+            if ($roleSelect !== []) {
+                $builder->select(implode(', ', $roleSelect));
+            }
+
+            $builder->join(SchemaModel::TABLE_ROLES . ' r', 'r.id = u.role_id', 'left');
         }
 
         if ($this->tableHasColumn(SchemaModel::TABLE_USERS, 'department_id')) {
-            $builder->select('d.name AS department_name')->join(SchemaModel::TABLE_DEPARTMENTS . ' d', 'd.id = u.department_id', 'left');
+            if ($this->tableHasColumn(SchemaModel::TABLE_DEPARTMENTS, 'name')) {
+                $builder->select('d.name AS department_name');
+            }
+
+            $builder->join(SchemaModel::TABLE_DEPARTMENTS . ' d', 'd.id = u.department_id', 'left');
         }
 
         $status = $this->request->getGet('status');
-        if ($status !== null && $status !== '') {
+        if ($status !== null && $status !== '' && $this->tableHasColumn(SchemaModel::TABLE_USERS, 'status')) {
             $builder->where('u.status', $status);
         }
 
         $roleId = $this->request->getGet('role_id');
-        if ($roleId !== null && $roleId !== '') {
+        if ($roleId !== null && $roleId !== '' && $this->tableHasColumn(SchemaModel::TABLE_USERS, 'role_id')) {
             $builder->where('u.role_id', $roleId);
         }
 
         $departmentId = $this->request->getGet('department_id');
-        if ($departmentId !== null && $departmentId !== '') {
+        if ($departmentId !== null && $departmentId !== '' && $this->tableHasColumn(SchemaModel::TABLE_USERS, 'department_id')) {
             $builder->where('u.department_id', $departmentId);
         }
 
-        $this->applySearch($builder, $this->request->getGet('search'), ['u.name', 'u.email']);
+        $this->applySearch($builder, $this->request->getGet('search'), $this->userSearchColumns());
 
         $result = $this->paginateBuilder($builder, $pagination);
         $result['items'] = array_map(fn (array $user): array => $this->publicUser($user), $result['items']);
@@ -163,6 +173,37 @@ class UsersController extends BaseApiController
         $this->db->table(SchemaModel::TABLE_USERS)->where('id', $id)->delete();
 
         return $this->success([], 'User deleted successfully.');
+    }
+
+
+    private function roleSelectColumns(): array
+    {
+        $columns = [];
+
+        if ($this->tableHasColumn(SchemaModel::TABLE_ROLES, 'name')) {
+            $columns[] = 'r.name AS role_name';
+        }
+
+        if ($this->tableHasColumn(SchemaModel::TABLE_ROLES, 'slug')) {
+            $columns[] = 'r.slug AS role_slug';
+        } elseif ($this->tableHasColumn(SchemaModel::TABLE_ROLES, 'name')) {
+            $columns[] = 'r.name AS role_slug';
+        }
+
+        return $columns;
+    }
+
+    private function userSearchColumns(): array
+    {
+        $columns = [];
+
+        foreach (['name', 'email'] as $column) {
+            if ($this->tableHasColumn(SchemaModel::TABLE_USERS, $column)) {
+                $columns[] = 'u.' . $column;
+            }
+        }
+
+        return $columns;
     }
 
     public function roles()
