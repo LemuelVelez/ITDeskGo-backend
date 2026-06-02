@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
-use CodeIgniter\RESTful\ResourceController;
+use CodeIgniter\API\ResponseTrait;
+use CodeIgniter\Controller;
 use Config\Database;
 
-abstract class BaseApiController extends ResourceController
+abstract class BaseApiController extends Controller
 {
+    use ResponseTrait;
+
     protected $format = 'json';
 
     protected \CodeIgniter\Database\BaseConnection $db;
